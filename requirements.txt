@@ -1,0 +1,14 @@
+SQLAlchemy
+certifi
+chardet
+idna
+mysqlclient
+pip
+praw
+prawcore
+requests
+setuptools
+update-checker
+urllib3
+Flask
+pytz
