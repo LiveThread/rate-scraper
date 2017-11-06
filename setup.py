@@ -7,7 +7,7 @@ setup(name='rate-scraper',
       author='William Reed, Nick Thompson',
       author_email='wreed58@gmail.com',
       license='MIT',
-      packages=['funniest'],
+      packages=['scraper'],
       install_requires=[
           'SQLAlchemy',
           'mysqlclient',
