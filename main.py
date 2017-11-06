@@ -32,10 +32,13 @@ def get_subreddits():
     for line in f:
         if line.startswith('#'):
             continue
-        if line == "\n":
+        if line == '\n':
             continue
         subreddits.append(line.rstrip('\n'))
     return subreddits
+
+# only read the file once.
+subreddits = get_subreddits()
 
 
 # run until dead...
@@ -49,7 +52,7 @@ while True:
 
     # get the posts from all the subreddits
     posts = []
-    for sub_name in get_subreddits():
+    for sub_name in subreddits:
         print('fetching "' + sub_name + '"')
         posts.extend(reddit.subreddit(sub_name).hot(limit=5))
 
