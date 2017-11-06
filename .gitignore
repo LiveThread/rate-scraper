@@ -1,3 +1,6 @@
+# ignore virtual env
+virtualenv/
+
 # my file with all the secret passwords
 config.py
 

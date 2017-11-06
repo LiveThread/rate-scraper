@@ -11,4 +11,3 @@ setuptools
 update-checker
 urllib3
 Flask
-pytz
