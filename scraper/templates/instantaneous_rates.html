@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+    <title>Reddit Stats</title>
+</head>
+<body>
+<h1>Rates of Posts from selected Sports / News / Meta Subreddits</h1>
+<p>Updated about every 10 minutes.</p>
+<a href="/top/">Top Rates</a>
+<table>
+    <tr>
+        <th>thing id</th>
+        <th>rate</th>
+        <th>timestamp</th>
+    </tr>
+
+    {% for post in posts %}
+    <tr>
+        <td><a href=https://redd.it/{{post.submission_id[3:]}}> {{post.submission_id}}</a></td>
+        <td>{{post.rate}}</td>
+        <td>{{post.timestamp}}</td>
+    </tr>
+    {% endfor %}
+</table>
+</body>
+</html>
