@@ -1,11 +1,11 @@
 import praw
-from models import Tracker, Rate, PeakRate, Base
+from scraper.models import Tracker, Rate, PeakRate, Base
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from datetime import datetime, timezone, timedelta
 import time
-import config
+from scraper import config
 
 # init stuff
 db = create_engine(config.db_connection)

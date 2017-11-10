@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Float, Integer, Interval
 from sqlalchemy.ext.declarative import declarative_base
 import datetime
-from datatypes import UTCDateTime
+from scraper.datatypes import UTCDateTime
 
 Base = declarative_base()
 

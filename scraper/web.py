@@ -1,7 +1,7 @@
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
-from models import Tracker, Rate, PeakRate
-import config
+from scraper.models import Tracker, Rate, PeakRate
+from scraper import config
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = config.db_connection
