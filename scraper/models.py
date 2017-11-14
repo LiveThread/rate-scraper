@@ -18,6 +18,7 @@ class Rate(Base):
     timestamp = Column(UTCDateTime, nullable=False)
     created = datetime.datetime
 
+
 # counts of comments at various times
 class Tracker(Base):
     __tablename__ = 'tracker'

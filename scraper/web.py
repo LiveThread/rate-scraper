@@ -13,10 +13,12 @@ def index():
     query = db.session().query(Rate).order_by(Rate.rate.desc())
     return render_template('instantaneous_rates.html', posts=query)
 
+
 @app.route("/top/")
 def top():
     query = db.session().query(PeakRate).order_by(PeakRate.rate.desc())
     return render_template('peak_rates.html', posts=query)
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0')
