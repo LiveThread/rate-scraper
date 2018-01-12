@@ -47,9 +47,12 @@ Base.metadata.create_all(db)
 logger.debug("Tables created / loaded.")
 
 reddit = praw.Reddit(client_id=config.reddit_client_id,
-                     client_secret=None,
-                     user_agent='hot comment thread calculator',
+                     client_secret=config.reddit_client_secret,
+                     user_agent=config.reddit_user_agent,
+                     username=config.reddit_user,
+                     password=config.reddit_password,
                      implicit=True)
+
 logger.debug("PRAW client connected.")
 
 DBSession = sessionmaker(bind=db)
@@ -57,7 +60,6 @@ session = DBSession()
 logger.debug("Database session initialized.")
 
 logger.info("Started successfully...")
-
 
 #    ______                _   _
 #   |  ____|              | | (_)
@@ -67,12 +69,20 @@ logger.info("Started successfully...")
 #   |_|   \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
 #
 
+get_subreddits_time = 0
+fetch_hot_posts_time = 0
+get_current_rates_time = 0
+compare_to_previous_time = 0
+delete_old_rates_time = 0
+
+
 def get_subreddits():
     """
     Read in the lines from subreddits.txt
     :return: the list of subreddits to traverse
     """
-    f = open("subreddits.txt", "r")
+    start = time.time()
+    f = open("data/january.txt", "r")
     subreddits = []
     for line in f:
         if line.startswith('#'):
@@ -80,6 +90,8 @@ def get_subreddits():
         if line == '\n':
             continue
         subreddits.append(line.rstrip('\n'))
+    global get_subreddits_time
+    get_subreddits_time = time.time() - start
     return subreddits
 
 
@@ -89,10 +101,13 @@ def fetch_hot_posts(subreddits):
     :param subreddits: the list of subrreddit names to hit
     :return: the list of those submissions
     """
+    start = time.time()
     posts = []
     for sub_name in subreddits:
         logging.debug('Fetching {}'.format(sub_name))
         posts.extend(reddit.subreddit(sub_name).hot(limit=config.post_per_subreddit))
+    global fetch_hot_posts_time
+    fetch_hot_posts_time = time.time() - start
     return posts
 
 
@@ -102,6 +117,7 @@ def get_current_rates(posts):
     :param posts: the list of PRAW posts to get the rates of
     :return: the new rates as a list of models.Tracker
     """
+    start = time.time()
     new_entries = []
     for post in posts:
         # if post older than 36 hours ignore it
@@ -112,12 +128,15 @@ def get_current_rates(posts):
             continue
 
         logger.debug('Processing "{}" with title "{}"'.format(post.fullname, post.title))
+        # switching the amount of comments to post.num_comments recieves all comments (not just top
+        # level however run time is increased by over a factor of 10
         entry = Tracker(submission_id=post.fullname, comment_count=post.comments.__len__(),
                         timestamp=current_timestamp)
         entry.created = post_timestamp
         new_entries.append(entry)
     session.commit()
-
+    global get_current_rates_time
+    get_current_rates_time = time.time() - start
     return new_entries
 
 
@@ -128,6 +147,7 @@ def compare_to_previous(trackers):
     :param trackers: a list of models.Tracker that was just fetched from reddit.
     :return:
     """
+    start = time.time()
     for tracker in trackers:
         last_entry = session.query(Tracker).filter(Tracker.submission_id == tracker.submission_id)
         if last_entry.count() != 1:
@@ -188,18 +208,23 @@ def compare_to_previous(trackers):
             logger.debug("--------------------------------")
 
     session.commit()
+    global compare_to_previous_time
+    compare_to_previous_time = time.time() - start
 
 
 def delete_old_rates():
     """
     Get rid of any old models.Rate from the database
     """
+    start = time.time()
     for rate in session.query(Rate).all():
         # delete old rates from the database
         if (datetime.now(timezone.utc) - rate.timestamp).total_seconds() > 15:
             session.query(Rate).filter(Rate.submission_id == rate.submission_id).delete()
             logger.debug("{} deleted from Rates table.".format(rate.submission_id))
     session.commit()
+    global delete_old_rates_time
+    delete_old_rates_time = time.time() - start
 
 
 #    ______                     _   _
@@ -239,9 +264,19 @@ while True:
     delete_old_rates()
     logger.debug("Finished deleting old rates.")
 
+    # print stats
+    logger.debug('-------------------------------------------------------')
+    logger.debug('Fetch Hot Posts duration: ' + str(fetch_hot_posts_time))
+    logger.debug('Get Current Rates duration: ' + str(get_current_rates_time))
+    logger.debug('Compare to previous duration: ' + str(compare_to_previous_time))
+    logger.debug('Delete expired rates duration: ' + str(delete_old_rates_time))
+    logger.debug('-------------------------------------------------------')
+
     # sleep
     duration = time.time() - start
     sleep_time = (10 * 60) - duration
     logger.info('Scraping took {} seconds.'.format(time.time() - start))
     logger.info('Sleeping for {} seconds...'.format(sleep_time))
-    time.sleep(sleep_time)
+
+    if sleep_time > 0:
+        time.sleep(sleep_time)

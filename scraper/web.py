@@ -1,3 +1,10 @@
+import sys
+import os.path
+
+# appends the current "full path name of the executing script in a multiplatform-safe way"
+# https://stackoverflow.com/questions/21005822/what-does-os-path-abspathos-path-joinos-path-dirname-file-os-path-pardir
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from scraper.models import Tracker, Rate, PeakRate
