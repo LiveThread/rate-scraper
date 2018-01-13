@@ -7,6 +7,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 import praw
 from scraper.models import Tracker, Rate, PeakRate, Base
+from scraper.json_dump import export_json
 
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
@@ -17,6 +18,11 @@ import time
 from scraper import config
 
 import logging
+import os
+import warnings
+
+from sqlalchemy import event
+from sqlalchemy import exc
 
 #    _____       _ _   _       _ _          _   _
 #   |_   _|     (_) | (_)     | (_)        | | (_)
@@ -28,6 +34,7 @@ import logging
 logger = logging.getLogger("comment_rates_logger")
 logger.setLevel(config.debug_level)
 
+# in case I want to log to a file eventually...
 # create console handler and set level
 # not needed unless logs go to file
 # ch = logging.StreamHandler()
@@ -39,8 +46,42 @@ logger.setLevel(config.debug_level)
 # logger.addHandler(ch)
 logger.debug("Logger initialized.")
 
+
+# we don't want subprocesses to use the same engine / connection so we are using this.
+def add_engine_pidguard(engine):
+    """
+    Add multiprocessing guards.
+    Forces a connection to be reconnected if it is detected
+    as having been shared to a sub-process.
+    from http://docs.sqlalchemy.org/en/rel_1_0/faq/connections.html#how-do-i-use-engines-connections-sessions-with-python-multiprocessing-or-os-fork
+    """
+
+    @event.listens_for(engine, "connect")
+    def connect(dbapi_connection, connection_record):
+        connection_record.info['pid'] = os.getpid()
+
+    @event.listens_for(engine, "checkout")
+    def checkout(dbapi_connection, connection_record, connection_proxy):
+        pid = os.getpid()
+        if connection_record.info['pid'] != pid:
+            # substitute log.debug() or similar here as desired
+            warnings.warn(
+                "Parent process %(orig)s forked (%(newproc)s) with an open "
+                "database connection, "
+                "which is being discarded and recreated." %
+                {"newproc": pid, "orig": connection_record.info['pid']})
+            connection_record.connection = connection_proxy.connection = None
+            raise exc.DisconnectionError(
+                "Connection record belongs to pid %s, "
+                "attempting to check out in pid %s" %
+                (connection_record.info['pid'], pid)
+            )
+
+
 db = create_engine(config.db_connection)
 logger.debug("Database engine created.")
+add_engine_pidguard(db)
+logger.debug("Database process guard enabled.")
 
 # creates tables if they don't exist. Does not drop if they do exist.
 Base.metadata.create_all(db)
@@ -145,7 +186,6 @@ def compare_to_previous(trackers):
     Go through all of the given models.Tracker (likely all the new ones that were just made) and compare
     them to the last models.Tracker in the database to compare it and calculate a comments / minute rate
     :param trackers: a list of models.Tracker that was just fetched from reddit.
-    :return:
     """
     start = time.time()
     for tracker in trackers:
@@ -226,7 +266,6 @@ def delete_old_rates():
     global delete_old_rates_time
     delete_old_rates_time = time.time() - start
 
-
 #    ______                     _   _
 #   |  ____|                   | | (_)
 #   | |__  __  _____  ___ _   _| |_ _  ___  _ __
@@ -235,7 +274,7 @@ def delete_old_rates():
 #   |______/_/\_\___|\___|\__,_|\__|_|\___/|_| |_|
 #
 
-# only read the file once.
+# only do this once
 subreddits = get_subreddits()
 
 # run until dead...
@@ -272,11 +311,20 @@ while True:
     logger.debug('Delete expired rates duration: ' + str(delete_old_rates_time))
     logger.debug('-------------------------------------------------------')
 
+    # export JSON
+    if config.export_json:
+        rv = os.fork()
+        if rv == 0:
+            # in child
+            export_json(logger, session, reddit)
+            # exit; this child's work has finished.
+            exit(0)
+        # parent
+
     # sleep
     duration = time.time() - start
     sleep_time = (10 * 60) - duration
     logger.info('Scraping took {} seconds.'.format(time.time() - start))
-    logger.info('Sleeping for {} seconds...'.format(sleep_time))
-
     if sleep_time > 0:
+        logger.info('Sleeping for {} seconds...'.format(sleep_time))
         time.sleep(sleep_time)
